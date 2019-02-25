@@ -1,0 +1,155 @@
+<!DOCTYPE HTML> 
+<html lang="en"> 
+<head>
+<title>Flight </title>
+<meta charset="utf-8"> 
+</head>
+
+    
+<script id="shader-vs" type="x-shader/x-vertex">
+   attribute vec3 aVertexNormal;
+   attribute vec3 aVertexPosition;
+   
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    uniform mat3 uNMatrix;
+    varying vec3 vNormal;
+    varying vec3 vPosition;
+    varying vec4 vColor;
+    varying vec3 sendcolor;
+    varying vec3 sendmatrialcolor;
+    
+    vec3 setColor(float height){
+        vec3 colors;
+        if(height<0.5){
+            colors = vec3(30, 0.1, 0.0);
+            
+        }
+        else if(height>=0.5 && height<0.6){
+            colors = vec3(25, 0.2, 0.0);
+            
+        }
+        else if(height>=0.6 && height<0.7){
+            colors = vec3(20, 0.3, 0.0);
+            
+        }
+        else if(height>=0.7 && height<0.93){
+            colors = vec3(15, 0.4, 0.0);
+            
+        }
+      
+        else if(height>=0.8 && height<0.9){
+            colors = vec3(0.0, 1.4, 0.0);
+           
+        }
+        else if(height>=0.9 && height<1.0){
+            colors = vec3(0.0, 1.6, 0.0);
+            
+        }
+        else if(height>=1.0 && height<1.1){
+            colors = vec3(0.0, 1.8, 0.0);
+           
+        }
+        else{
+            colors = vec3(0.0, 2.3, 0.0);  //green 1,66,1
+            
+        }
+        return colors;
+    }
+
+    void main(void) {
+    sendcolor= setColor(aVertexPosition.z);
+    sendmatrialcolor=vec3(1, 1, 0.1);
+    // Get the vertex position in eye coordinates
+    vec4 vertexPositionEye4 = uMVMatrix * vec4(aVertexPosition, 1.0);
+    vPosition = vertexPositionEye4.xyz / vertexPositionEye4.w;
+    //Calaulate the normal
+    vNormal = normalize(uNMatrix * aVertexNormal);
+   
+    gl_Position = uPMatrix*uMVMatrix*vec4(aVertexPosition, 1.0);
+    
+
+        
+    }
+</script>
+  
+<script id="shader-fs" type="x-shader/x-fragment">
+precision mediump float;
+varying vec3 vNormal;
+varying vec3 vPosition;
+varying vec3 sendcolor;
+varying vec3 sendmatrialcolor;
+uniform vec3 uLightPosition;
+uniform vec3 uAmbientLightColor;
+uniform vec3 uDiffuseLightColor;
+uniform vec3 uSpecularLightColor;
+uniform vec3 uAmbientMaterialColor;
+uniform vec3 uDiffuseMaterialColor;
+uniform vec3 uSpecularMaterialColor;
+uniform float uShininess;
+uniform float uFogDensity;
+
+
+
+void main(void) {
+        
+    vec4 vColor;
+    // Calculate the vector (l) to the light source
+    vec3 vectorToLightSource = normalize(uLightPosition - vPosition);
+    
+    // Calculate n dot l for diffuse lighting
+    float diffuseLightWeightning = max(dot(vNormal, 
+                                    vectorToLightSource), 0.0);
+                                       
+    // Calculate the reflection vector (r) that is needed for specular light
+    vec3 reflectionVector = normalize(reflect(-vectorToLightSource, 
+                                             vNormal));
+    
+    // The camera in eye coordinates is located in the origin and is pointing
+    // along the negative z-axis. Calculate viewVector (v) 
+    // in eye coordinates as:
+    // (0.0, 0.0, 0.0) - vertexPositionEye3
+    vec3 viewVectorEye = -normalize(vPosition);
+    vec3 halfDir = normalize(vectorToLightSource + viewVectorEye);
+    float rdotv = max(dot(halfDir, vNormal), 0.0);
+    
+    float specularLightWeightning = pow(rdotv, uShininess);
+
+    // Sum up all three reflection components and send to the fragment shader
+    vColor = vec4(((uAmbientLightColor*sendmatrialcolor*sendcolor)
+                + (uDiffuseLightColor*sendmatrialcolor) * diffuseLightWeightning
+                + (uSpecularLightColor*sendmatrialcolor) * specularLightWeightning),1.0);
+
+    float fogCoord = (gl_FragCoord.z/gl_FragCoord.w);
+    const float LOG2 = 1.442695;
+    //float fogDensity = 0.15;
+    vec4 fogColor = vec4(1.0, 1.0, 1.0, 1.0);
+    float fogFactor = exp2( -uFogDensity * uFogDensity * fogCoord * fogCoord * LOG2 ); 
+    fogFactor = clamp(fogFactor, 0.0, 1.0); 
+    gl_FragColor = mix(fogColor, vColor, fogFactor );
+ }
+</script>
+
+<script src="gl-matrix-min.js"></script> 
+<script src="webgl-utils.js"></script>
+<script src="simpleModeling.js"></script>   
+<script src="terrainModeling.js"></script>  
+<script src="HelloTerrain.js"></script>   
+<body onload="startup();">
+<h1 style="color:brown">ZXY Flight Simulator</h1>
+<h2 style="color:purple">Controls: </h2>
+<h2 style="color:purple">Up/Down arrow keys: pitch;   Left/Right arrow keys: roll</h2>
+<h2 style="color:purple">A: yaw left, D: yaw right</h2>
+<h2 style="color:purple">+: speed up, -: speed down. Z:fog on, X:fog off</h2>
+ <canvas id="myGLCanvas" width="1000" height="425"></canvas>
+    <form id="input_form">
+        <fieldset>
+            <legend>Rendering Parameters</legend>
+         <input type="radio" name="primitive" id="wireframe" value="wireframe"> Wireframe
+         <input type="radio" name="primitive" id="polygon" id="polygon" value="polygon"> Polygon
+         <input type="radio" name="primitive" id="wirepoly" value="wirepoly" checked > Polygon with Edges  
+        </fieldset>
+        </form>
+</body>
+
+</html>
