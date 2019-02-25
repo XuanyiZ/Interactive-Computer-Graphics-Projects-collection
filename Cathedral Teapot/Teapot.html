@@ -1,0 +1,153 @@
+<!DOCTYPE HTML> 
+<html lang="en"> 
+<head>
+<title>Teapot</title>
+<meta charset="utf-8"> 
+</head>
+
+   
+<script id="shader-vs" type="x-shader/x-vertex">
+   // vertex, normal, position
+   attribute vec3 aVertexNormal;
+   attribute vec3 aVertexPosition;
+   
+   // Matrix
+   uniform vec3 uLightPosition;
+   uniform mat4 uMVMatrix;
+   uniform mat4 uPMatrix;
+   uniform mat3 uNMatrix;
+   uniform mat4 uRotateMat;
+   
+   // vertex information for frag shader  
+   varying vec3 vertexPositionEye3; 
+   varying vec3 vNormal; //vertex_normal
+   varying vec3 tVertexPosition; //vertex_position
+   varying vec3 vLightPosition; 
+   varying vec3 tVertexNormal; 
+   
+   void main(void) {
+     // Transform model coordinates to view coodinates
+     vec4 vertexPositionEye4 = uMVMatrix * vec4(aVertexPosition, 1.0);
+     vertexPositionEye3 = vertexPositionEye4.xyz / vertexPositionEye4.w;
+     // Also apply transformation to light source, to make the light physically static
+     vec4 vLightPosition4 = uMVMatrix * vec4(uLightPosition, 1.0); 
+     vLightPosition = vLightPosition4.xyz / vLightPosition4.w; 
+     // Transform normals
+     vNormal = normalize(uNMatrix * aVertexNormal); 
+     vNormal = vec3(uRotateMat * vec4(vNormal, 1.0)); 
+
+     gl_Position = uPMatrix*uMVMatrix*vec4(aVertexPosition, 1.0);
+
+     // Preserve for texture mapping
+     tVertexPosition = aVertexPosition; 
+
+     tVertexNormal = vec3(uRotateMat * vec4(aVertexNormal, 1.0));
+
+    }
+</script>
+  
+<script id="shader-fs" type="x-shader/x-fragment">
+  precision mediump float;
+
+   varying vec3 vertexPositionEye3; 
+   varying vec3 vNormal; //vertex_normal
+   varying vec3 tVertexPosition; //vertex_position
+   varying vec3 vLightPosition; 
+  varying vec3 tVertexNormal; 
+
+  // The texture
+  uniform samplerCube uSampler;
+  uniform vec3 viewDir;
+
+  // set gl_FragColor
+  uniform float uIsSkybox;
+  uniform float uIsreflective;
+  uniform vec3 uAmbientLightColor;
+  uniform vec3 uDiffuseLightColor;
+  uniform vec3 uSpecularLightColor;
+
+  // shininess
+   const float shininess = 1.80;
+  //citation: hellotoon.html
+  void main() {
+    // Calculate the vector (l) to the light source
+    vec3 vectorToLightSource = normalize(vLightPosition - vertexPositionEye3);
+
+    // Calculate n dot l for diffuse lighting
+    float diffuseLightWeighting = max(dot(vNormal, 
+                                  vectorToLightSource), 0.0);
+    
+    // Calculate the reflection vector (r) that is needed for specular light           
+    vec3 reflectionVector = normalize(reflect(-vectorToLightSource, 
+                                           vNormal));
+
+    // The camera in eye coordinates is located in the origin and is pointing
+    // along the negative z-axis. Calculate viewVector (v) 
+    // in eye coordinates as:
+    // (0.0, 0.0, 0.0) - vPosition
+    vec3 viewVectorEye = -normalize(vertexPositionEye3);
+
+    // Use Blinn-phong reflectance model
+    vec3 halfwayVector = normalize(vectorToLightSource + viewVectorEye); 
+    float ndoth = max(dot(vNormal, halfwayVector), 0.0); 
+
+    float specularLightWeighting = pow(ndoth, shininess);
+       
+    // Sum up all three reflection components and send to the fragment shader
+    vec4 vColor = vec4(uAmbientLightColor
+                  + ((uDiffuseLightColor) * diffuseLightWeighting)
+                  + ((uSpecularLightColor) * specularLightWeighting),1.0);
+
+
+    // texture map the skybox
+    if (uIsSkybox > 0.5)
+      gl_FragColor = textureCube(uSampler, normalize(tVertexPosition));
+    // environment map the teapot
+    else{
+      if(uIsreflective==0.0){
+      //vec3 ref=vec3(0.0,0.0,-1.0);
+      //vec3 reflect = 2.0*(dot(vNormal, ref))*vNormal - ref;
+      //vec3 reflect = 2.0*(dot(vNormal, viewDir))*vNormal - viewDir;  //suspect this line is wrong
+      //gl_FragColor = textureCube(uSampler, normalize(-reflect)) +vColor;}
+      // Calculate reflect vector for texture mapping
+        //vec3 reflect = reflect(tVertexNormal, viewDir); 
+        vec3 reflect = 2.0*(dot(tVertexNormal, viewDir))*tVertexNormal - viewDir;
+        // Map texture to teapot
+        gl_FragColor = textureCube(uSampler, normalize(-reflect)) + vColor;}
+      else{
+      gl_FragColor =  vColor;}
+    }
+  }
+</script>
+
+<script src="gl-matrix-min.js"></script> 
+<script src="webgl-utils.js"></script>   
+<script src="maintp.js"></script> 
+<script src="TP.js"></script> 
+<body onload="startup();">
+    <form id="input_form">
+            <h2>
+                <legend>Teapot_Controls</legend> 
+            </h2>
+            
+            W/S:      rotate Teapot itself LEFT/RIGHT <br>
+            A/D : rotate world/ orbit Teapot LEFT/RIGHT<br>
+            
+        	BONUS:
+            Q/E : rotate world/ orbit Teapot up/down<br>
+            left/right arrow:     teapot rotate up/down<br>
+            up/down arrow:     teapot rotate up/down<br>
+                              
+        
+        </form>
+<canvas id="myGLCanvas" width="800" height="800"></canvas>
+    <form id="input_form">
+        <fieldset>
+            <legend>Rendering Parameters</legend>
+         <input type="radio" name="primitive" id="reflectyes" value="reflectyes" checked> reflectyes
+         <input type="radio" name="primitive" id="reflectno" id="reflectno" value="reflectno"> reflectno
+          
+        </fieldset>
+        </form>
+</body>
+</html>
